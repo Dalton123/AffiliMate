@@ -8,17 +8,20 @@ Geo-targeted affiliate creative serving API. Returns the best affiliate link/ban
 
 ## CONTINUE FROM HERE (New Chat)
 
-**Current state**: M3 nearly complete - Import page functional, Test Placement page complete
-**Next task**: Add integration examples (code snippets showing how to use the serve API)
+**Current state**: M3 Complete - All milestones finished
+**Production URL**: https://affilimate.vercel.app/
 
-**Recent additions**:
+**Completed features**:
 - Test Placement page at `/test` to preview serve responses with debug info
 - Snippet parser extracted to `/apps/web/src/lib/snippet-parser.ts`
 - Import API endpoint at `/api/admin/creatives/import` with `creative_imports` table storage
 - Import page with 3-step wizard: Configure -> Preview -> Complete
+- Auto-detect image dimensions during import preview
+- Integration examples in README (JavaScript, React, Node.js)
+- "For AI Assistants" section in README
 
 **To start a new chat, say**:
-> "Continue building AffiliMate. M3 is nearly complete. The remaining task is adding integration examples. See PLAN.md for details."
+> "Continue building AffiliMate. M3 is complete. The app is live at https://affilimate.vercel.app/. See PLAN.md and README.md for details."
 
 **Dev server commands**:
 ```bash
@@ -40,7 +43,7 @@ pnpm dev            # Start Next.js dev server
 | M0: Scaffolding | Complete | Monorepo, DB schema, Auth, Layout |
 | M1: Admin CRUD | Complete | Placements, Offers, Creatives, Rules, API Keys |
 | M2: Serve Endpoint | Complete | API key validation, geo detection, selection algorithm |
-| M3: Import + Polish | In Progress | Import wizard complete, Test page + docs remaining |
+| M3: Import + Polish | Complete | Import wizard, Test page, integration docs |
 
 ---
 
@@ -139,7 +142,7 @@ pnpm dev            # Start Next.js dev server
 - [x] Store raw HTML in `creative_imports`
 - [x] Empty states, loading states, error toasts
 - [x] Auto-detect image dimensions (client-side via naturalWidth/naturalHeight)
-- [ ] Integration examples
+- [x] Integration examples (JavaScript, React, Node.js in README)
 
 ---
 
