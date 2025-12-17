@@ -2,6 +2,70 @@
 
 Geo-targeted affiliate creative serving API. Returns the best affiliate link/banner based on visitor location, placement, category, and size.
 
+---
+
+## The Problem
+
+Developers with global audiences lose affiliate revenue because:
+
+- **Region-specific links** - Amazon US links don't earn commissions from UK visitors
+- **Manual management** - Swapping affiliate links per region is tedious and error-prone
+- **Geo-restrictions** - Some affiliate programs only pay for specific countries
+- **Lost conversions** - Showing irrelevant regional offers hurts click-through rates
+
+Most developers either ignore international traffic or maintain complex conditional logic that breaks when they add new regions.
+
+---
+
+## The Solution
+
+AffiliMate is an API that automatically serves the right affiliate creative based on visitor location. One integration, all regions - add new regional offers through the dashboard without touching code.
+
+---
+
+## Why AffiliMate?
+
+- **Automatic geo-targeting** - Detects visitor country from IP and serves matching offers
+- **One integration, all regions** - Add UK, EU, or any regional offers without code changes
+- **Smart fallbacks** - Never show empty ad slots with configurable fallback creatives or URLs
+- **Priority & weight system** - Fine-grained control over which ads show and when
+- **Works with any network** - Awin, ShareASale, CJ, Amazon Associates, or direct deals
+- **Developer-friendly** - Simple REST API with debug mode for testing
+
+---
+
+## How Geo-Targeting Works
+
+**Automatic Location Detection:**
+1. `?country=XX` query param (explicit override for testing)
+2. Vercel's `x-vercel-ip-country` header (automatic on Vercel)
+3. Cloudflare's `cf-ipcountry` header (automatic behind Cloudflare)
+
+**Smart Rule Hierarchy:**
+- Create **region-specific rules** targeting `['US']`, `['GB']`, etc.
+- Create **global fallback rules** with empty countries (matches any location)
+- Higher priority rules always win - use priority 80 for regional, priority 10 for global
+
+**Example Flow:**
+```
+US visitor → matches "Amazon US" rule (priority 80) → shows amazon.com link
+UK visitor → matches "Amazon UK" rule (priority 80) → shows amazon.co.uk link
+Unknown country → no regional match → matches "Generic" rule (priority 10) → shows default offer
+No rules match → placement fallback kicks in → shows backup creative or URL
+```
+
+---
+
+## Use Cases
+
+- **Tech review sites** - Show Amazon affiliate links for the visitor's country
+- **Travel blogs** - Display regional Booking.com or Expedia offers
+- **SaaS tools pages** - Promote software deals relevant to the visitor's market
+- **Finance blogs** - Country-specific credit card or banking offers
+- **Any site with global traffic** - Stop leaving money on the table from international visitors
+
+---
+
 ## Live Demo
 
 **Production**: https://affilimate.vercel.app/
