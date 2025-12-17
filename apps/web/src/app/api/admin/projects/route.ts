@@ -16,6 +16,21 @@ export async function GET() {
     );
   }
 
+  // Ensure profile exists (handles edge case where signup trigger didn't fire)
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) {
+    await supabase.from('profiles').insert({
+      id: user.id,
+      email: user.email!,
+      full_name: '',
+    });
+  }
+
   // Check for existing project
   let { data: project } = await supabase
     .from('projects')
