@@ -41,17 +41,24 @@ AffiliMate is an API that automatically serves the right affiliate creative base
 2. Vercel's `x-vercel-ip-country` header (automatic on Vercel)
 3. Cloudflare's `cf-ipcountry` header (automatic behind Cloudflare)
 
+**Two-Level Fallback System:**
+
+| Level | What | How to Set Up |
+|-------|------|---------------|
+| 1. Global Rule | A rule that matches any country | Check "Global fallback" in rule form (auto-sets low priority) |
+| 2. Placement Fallback | Last resort when no rules match | Set "Fallback Type: Creative" in placement form |
+
 **Smart Rule Hierarchy:**
-- Create **region-specific rules** targeting `['US']`, `['GB']`, etc.
-- Create **global fallback rules** with empty countries (matches any location)
-- Higher priority rules always win - use priority 80 for regional, priority 10 for global
+- Create **region-specific rules** targeting `['US']`, `['GB']`, etc. with priority 50+
+- Create **global fallback rule** by checking "Global fallback (matches all countries)" - auto-sets priority to 10
+- Higher priority rules always win
 
 **Example Flow:**
 ```
-US visitor → matches "Amazon US" rule (priority 80) → shows amazon.com link
-UK visitor → matches "Amazon UK" rule (priority 80) → shows amazon.co.uk link
-Unknown country → no regional match → matches "Generic" rule (priority 10) → shows default offer
-No rules match → placement fallback kicks in → shows backup creative or URL
+US visitor → matches "Amazon US" rule (priority 50) → shows amazon.com link
+UK visitor → matches "Amazon UK" rule (priority 50) → shows amazon.co.uk link
+JP visitor → no regional match → matches global rule (priority 10) → shows generic offer
+No rules match at all → placement fallback → shows backup creative
 ```
 
 ---
@@ -120,9 +127,15 @@ Go to **Import** and paste Awin HTML snippets. The wizard will:
 
 Go to **Placements** and create a placement for where ads appear (e.g., `sidebar`, `header-banner`).
 
+**Tip:** Set a fallback creative - this shows when no targeting rules match. Select "Creative" as the fallback type and pick a generic/global creative.
+
 ### Step 4: Create Targeting Rules
 
-Go to **Rules** and link creatives to placements with optional country/category targeting.
+Go to **Rules** and link creatives to placements with country targeting.
+
+**Recommended setup:**
+1. Create regional rules (e.g., US creative for `['US']`, UK creative for `['GB']`) with priority 50+
+2. Create one **global fallback rule** - check "Global fallback (matches all countries)" to catch visitors from any other region
 
 ### Step 5: Generate an API Key
 
@@ -146,7 +159,10 @@ Define where ads will appear on your site. Each placement has:
 - **Name** - Human-readable label
 - **Slug** - URL identifier (e.g., `homepage-sidebar`)
 - **Default Size** - Preferred dimensions (e.g., `300x250`)
-- **Fallback** - What to show if no creative matches (another creative, a URL, or nothing)
+- **Fallback Type** - What to show if no rules match:
+  - `None` - Show nothing
+  - `URL` - Redirect to a custom URL
+  - `Creative` - Show a specific fallback creative (opens creative picker)
 
 ### 2. Offers
 
@@ -171,9 +187,10 @@ The actual banners/links to display:
 Control which creatives show where:
 - **Placement** - Which placement this rule applies to
 - **Creative** - Which creative to potentially show
-- **Countries** - Limit to specific countries (empty = all)
+- **Global Fallback** - Check this to make the rule match ALL countries (sets priority low automatically)
+- **Countries** - Limit to specific countries (or leave empty for global rules)
 - **Categories** - Limit to specific categories (empty = all)
-- **Priority** - Higher priority rules are preferred (0-100)
+- **Priority** - Higher priority rules are preferred (0-100). Regional rules should be higher (50+), global fallbacks lower (10-20)
 - **Weight** - For random selection among equal-priority rules (1-100)
 
 ### 5. API Keys
