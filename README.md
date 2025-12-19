@@ -243,6 +243,7 @@ curl -H "X-API-Key: am_live_xxxxx" "https://affilimate.vercel.app/api/v1/serve?p
 | `category` | No | Filter by category |
 | `size` | No | Filter by size (e.g., `300x250`) |
 | `format` | No | Filter by format (`banner`, `text`, `native`) |
+| `limit` | No | Number of creatives to return (default: 1, max: 10) |
 | `debug` | No | Set to `true` for debug info |
 
 ### Response
@@ -278,6 +279,57 @@ When no creative matches:
   }
 }
 ```
+
+### Multi-Creative Response (Ad Sliders)
+
+Use `limit` to fetch multiple creatives for carousels or sliders:
+
+```bash
+curl -H "X-API-Key: am_live_xxxxx" "https://affilimate.vercel.app/api/v1/serve?placement=slider&limit=5"
+```
+
+Response with multiple creatives:
+
+```json
+{
+  "creative": null,
+  "creatives": [
+    {
+      "creative": {
+        "click_url": "https://www.awin1.com/cread.php?...",
+        "image_url": "https://www.awin1.com/cshow.php?...",
+        "alt_text": "Brand A - Summer Sale",
+        "width": 300,
+        "height": 250,
+        "format": "banner"
+      },
+      "impression_id": "abc123-...",
+      "tracking_url": "/api/v1/click/abc123-...?url=..."
+    },
+    {
+      "creative": {
+        "click_url": "https://www.awin1.com/cread.php?...",
+        "image_url": "https://www.awin1.com/cshow.php?...",
+        "alt_text": "Brand B - New Arrivals",
+        "width": 300,
+        "height": 250,
+        "format": "banner"
+      },
+      "impression_id": "def456-...",
+      "tracking_url": "/api/v1/click/def456-...?url=..."
+    }
+  ],
+  "fallback": false,
+  "geo": {
+    "country": "US",
+    "source": "vercel-header"
+  }
+}
+```
+
+- Each creative has its own `impression_id` and `tracking_url` for accurate per-brand analytics
+- Creatives are unique (no duplicates) and sorted by priority
+- Use the `tracking_url` for clicks to enable click tracking per creative
 
 ### Debug Mode
 
@@ -436,6 +488,54 @@ async function getCreative(placement, country) {
 
 // Usage in API route or server component
 const { creative, geo } = await getCreative('sidebar', 'GB');
+```
+
+### Ad Slider/Carousel
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function AdSlider({ placement, count = 5 }) {
+  const [ads, setAds] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    fetch(`https://affilimate.vercel.app/api/v1/serve?placement=${placement}&limit=${count}`, {
+      headers: { 'X-API-Key': process.env.NEXT_PUBLIC_AFFILIMATE_KEY }
+    })
+      .then(res => res.json())
+      .then(data => setAds(data.creatives || []));
+  }, [placement, count]);
+
+  if (ads.length === 0) return null;
+
+  const current = ads[currentIndex];
+
+  return (
+    <div className="ad-slider">
+      <a href={current.tracking_url} target="_blank" rel="sponsored noopener">
+        <img
+          src={current.creative.image_url}
+          width={current.creative.width}
+          height={current.creative.height}
+          alt={current.creative.alt_text || ''}
+        />
+      </a>
+      <div className="dots">
+        {ads.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setCurrentIndex(i)}
+            className={i === currentIndex ? 'active' : ''}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Usage
+<AdSlider placement="homepage-slider" count={5} />
 ```
 
 ---

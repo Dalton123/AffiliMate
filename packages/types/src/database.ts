@@ -132,3 +132,39 @@ export interface CreativeImport {
   error_message: string | null;
   creative_id: string | null;
 }
+
+// ===========================================
+// Analytics Types
+// ===========================================
+
+export interface Impression {
+  id: string;
+  project_id: string;
+  placement_id: string;
+  creative_id: string | null;
+  rule_id: string | null;
+  country: string | null;
+  was_fallback: boolean;
+  created_at: string;
+}
+
+export interface Click {
+  id: string;
+  impression_id: string | null;
+  project_id: string;
+  creative_id: string | null;
+  country: string | null;
+  created_at: string;
+}
+
+export interface DailyStat {
+  id: string;
+  project_id: string;
+  date: string;
+  placement_id: string | null;
+  creative_id: string | null;
+  country: string | null;
+  impressions: number;
+  clicks: number;
+  created_at: string;
+}

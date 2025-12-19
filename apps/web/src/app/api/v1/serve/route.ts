@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { ServeResponse, GeoInfo } from '@affilimate/types';
+import type { ServeResponse, ServeCreativeItem, GeoInfo } from '@affilimate/types';
 import { validateApiKey } from '@/lib/auth';
-import { selectCreative } from '@/lib/selection';
+import { selectCreative, selectMultipleCreatives } from '@/lib/selection';
+import { createAdminClient } from '@/lib/supabase/server';
 
 // Detect country from request headers
 function detectCountry(request: NextRequest, searchParams: URLSearchParams): GeoInfo {
@@ -69,8 +70,85 @@ export async function GET(request: NextRequest) {
   const size = searchParams.get('size');
   const format = searchParams.get('format');
   const debug = searchParams.get('debug') === 'true';
+  const limitParam = searchParams.get('limit');
+  const limit = Math.min(Math.max(parseInt(limitParam || '1', 10) || 1, 1), 10);
 
-  // Run selection algorithm
+  // Multi-creative flow when limit > 1
+  if (limit > 1) {
+    const multiResult = await selectMultipleCreatives({
+      projectId: validation.projectId,
+      placementSlug: placement,
+      country: geo.country,
+      category,
+      size,
+      format,
+      limit,
+    });
+
+    // Handle placement errors
+    if (multiResult.error === 'placement_not_found') {
+      return NextResponse.json(
+        { error: 'placement_not_found', message: ERROR_MESSAGES.placement_not_found },
+        { status: 404 }
+      );
+    }
+
+    // Generate impression IDs and log impressions for each creative
+    const creatives: ServeCreativeItem[] = [];
+
+    if (multiResult.placementId && multiResult.creatives.length > 0) {
+      const supabaseAdmin = await createAdminClient();
+
+      for (const item of multiResult.creatives) {
+        const impressionId = crypto.randomUUID();
+
+        // Log impression (fire-and-forget)
+        supabaseAdmin
+          .from('impressions')
+          .insert({
+            id: impressionId,
+            project_id: validation.projectId,
+            placement_id: multiResult.placementId,
+            creative_id: item.creativeId,
+            rule_id: item.ruleId,
+            country: geo.country,
+            was_fallback: false,
+          })
+          .then(() => {});
+
+        creatives.push({
+          creative: item.creative,
+          impression_id: impressionId,
+          tracking_url: `/api/v1/click/${impressionId}?url=${encodeURIComponent(item.creative.click_url)}`,
+        });
+      }
+    }
+
+    // Build multi-creative response
+    const response: ServeResponse = {
+      creative: null,
+      creatives,
+      fallback: multiResult.fallback,
+      fallback_type: 'none',
+      geo,
+    };
+
+    if (debug) {
+      response.debug = {
+        rules_matched: multiResult.rulesMatched,
+        selection_reason: multiResult.selectionReason,
+      };
+    }
+
+    return NextResponse.json(response, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+      },
+    });
+  }
+
+  // Single-creative flow (default, backward compatible)
   const result = await selectCreative({
     projectId: validation.projectId,
     placementSlug: placement,
@@ -88,12 +166,34 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Generate impression ID and log impression (fire-and-forget)
+  const impressionId = crypto.randomUUID();
+  if (result.placementId) {
+    createAdminClient()
+      .then((supabaseAdmin) =>
+        supabaseAdmin.from('impressions').insert({
+          id: impressionId,
+          project_id: validation.projectId,
+          placement_id: result.placementId!,
+          creative_id: result.creativeId || null,
+          rule_id: result.ruleId || null,
+          country: geo.country,
+          was_fallback: result.fallback,
+        })
+      )
+      .catch(console.error);
+  }
+
   // Build response
   const response: ServeResponse = {
     creative: result.creative,
     fallback: result.fallback,
     fallback_type: result.fallbackType === 'creative' ? 'placement_default' : 'none',
     geo,
+    impression_id: impressionId,
+    tracking_url: result.creative
+      ? `/api/v1/click/${impressionId}?url=${encodeURIComponent(result.creative.click_url)}`
+      : undefined,
   };
 
   if (debug) {

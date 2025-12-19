@@ -16,6 +16,7 @@ export interface ServeRequest {
   size?: string; // Size filter "WxH"
   format?: CreativeFormat; // Format filter
   debug?: boolean; // Include debug info
+  limit?: number; // Number of creatives to return (default: 1, max: 10)
 }
 
 export interface ServeCreative {
@@ -32,6 +33,12 @@ export interface GeoInfo {
   source: 'param' | 'vercel-header' | 'cloudflare-header' | 'unknown';
 }
 
+export interface ServeCreativeItem {
+  creative: ServeCreative;
+  impression_id: string;
+  tracking_url: string;
+}
+
 export interface ServeResponse {
   creative: ServeCreative | null;
   fallback: boolean;
@@ -41,6 +48,9 @@ export interface ServeResponse {
     rules_matched: number;
     selection_reason: string;
   };
+  impression_id?: string;
+  tracking_url?: string;
+  creatives?: ServeCreativeItem[]; // Array of creatives when limit > 1
 }
 
 // =====================
@@ -171,4 +181,59 @@ export interface ImportCreativesResponse {
   imported: number;
   failed: number;
   results: ImportResult[];
+}
+
+// =====================
+// Analytics API
+// =====================
+
+export interface AnalyticsSummary {
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  top_country: string | null;
+  top_placement: string | null;
+  top_creative: string | null;
+}
+
+export interface DailyStats {
+  date: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+export interface PlacementStats {
+  placement_id: string;
+  placement_name: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+export interface CreativeStats {
+  creative_id: string;
+  creative_name: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+export interface CountryStats {
+  country: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+export interface AnalyticsResponse {
+  summary: {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+  };
+  period: {
+    days: number;
+    start: string;
+  };
 }

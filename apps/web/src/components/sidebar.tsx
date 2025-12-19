@@ -12,11 +12,13 @@ import {
   Key,
   Settings,
   LogOut,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 
 const navigation = [
+  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Placements', href: '/placements', icon: LayoutGrid },
   { name: 'Offers', href: '/offers', icon: Target },
   { name: 'Creatives', href: '/creatives', icon: Image },
