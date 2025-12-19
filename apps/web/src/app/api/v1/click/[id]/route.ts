@@ -36,7 +36,9 @@ export async function GET(
           creative_id: impression.creative_id,
           country: impression.country,
         })
-        .then(() => {});
+        .then(({ error }) => {
+          if (error) console.error('[Click] Insert failed:', error);
+        });
     }
 
     // Redirect to affiliate URL

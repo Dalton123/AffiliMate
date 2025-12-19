@@ -114,7 +114,9 @@ export async function GET(request: NextRequest) {
             country: geo.country,
             was_fallback: false,
           })
-          .then(() => {});
+          .then(({ error }) => {
+            if (error) console.error('[Impression] Insert failed:', error);
+          });
 
         creatives.push({
           creative: item.creative,
@@ -169,19 +171,21 @@ export async function GET(request: NextRequest) {
   // Generate impression ID and log impression (fire-and-forget)
   const impressionId = crypto.randomUUID();
   if (result.placementId) {
-    createAdminClient()
-      .then((supabaseAdmin) =>
-        supabaseAdmin.from('impressions').insert({
-          id: impressionId,
-          project_id: validation.projectId,
-          placement_id: result.placementId!,
-          creative_id: result.creativeId || null,
-          rule_id: result.ruleId || null,
-          country: geo.country,
-          was_fallback: result.fallback,
-        })
-      )
-      .catch(console.error);
+    const supabaseAdmin = await createAdminClient();
+    supabaseAdmin
+      .from('impressions')
+      .insert({
+        id: impressionId,
+        project_id: validation.projectId,
+        placement_id: result.placementId!,
+        creative_id: result.creativeId || null,
+        rule_id: result.ruleId || null,
+        country: geo.country,
+        was_fallback: result.fallback,
+      })
+      .then(({ error }) => {
+        if (error) console.error('[Impression] Insert failed:', error);
+      });
   }
 
   // Build response
