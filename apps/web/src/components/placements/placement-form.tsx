@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import type { Placement, CreatePlacementRequest } from '@affilimate/types';
 import { useEffect } from 'react';
+import { useCreatives } from '@/hooks/use-creatives';
 
 interface PlacementFormProps {
   open: boolean;
@@ -36,6 +37,8 @@ export function PlacementForm({
   placement,
   isLoading,
 }: PlacementFormProps) {
+  const { data: creatives = [] } = useCreatives();
+
   const {
     register,
     handleSubmit,
@@ -51,10 +54,12 @@ export function PlacementForm({
       default_size: '',
       fallback_type: 'none',
       fallback_url: '',
+      fallback_creative_id: '',
     },
   });
 
   const fallbackType = watch('fallback_type');
+  const fallbackCreativeId = watch('fallback_creative_id');
 
   useEffect(() => {
     if (placement) {
@@ -65,6 +70,7 @@ export function PlacementForm({
         default_size: placement.default_size || '',
         fallback_type: placement.fallback_type,
         fallback_url: placement.fallback_url || '',
+        fallback_creative_id: placement.fallback_creative_id || '',
       });
     } else {
       reset({
@@ -74,6 +80,7 @@ export function PlacementForm({
         default_size: '',
         fallback_type: 'none',
         fallback_url: '',
+        fallback_creative_id: '',
       });
     }
   }, [placement, reset]);
@@ -160,6 +167,30 @@ export function PlacementForm({
                 {...register('fallback_url')}
                 placeholder="https://example.com"
               />
+            </div>
+          )}
+
+          {fallbackType === 'creative' && (
+            <div className="space-y-2">
+              <Label htmlFor="fallback_creative_id">Fallback Creative</Label>
+              <Select
+                value={fallbackCreativeId || ''}
+                onValueChange={(v) => setValue('fallback_creative_id', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a creative" />
+                </SelectTrigger>
+                <SelectContent>
+                  {creatives.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} {c.size && `(${c.size})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Shown when no targeting rules match
+              </p>
             </div>
           )}
 

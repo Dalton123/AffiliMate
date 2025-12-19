@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -89,6 +90,7 @@ export function RuleForm({
   });
 
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [isGlobalRule, setIsGlobalRule] = useState(false);
   const placementId = watch('placement_id');
   const creativeId = watch('creative_id');
   const priority = watch('priority');
@@ -105,6 +107,8 @@ export function RuleForm({
         weight: rule.weight,
       });
       setSelectedCountries(rule.countries);
+      // Detect if this is a global rule (empty countries + low priority)
+      setIsGlobalRule(rule.countries.length === 0 && rule.priority <= 20);
     } else {
       reset({
         placement_id: placements[0]?.id || '',
@@ -115,6 +119,7 @@ export function RuleForm({
         weight: 100,
       });
       setSelectedCountries([]);
+      setIsGlobalRule(false);
     }
   }, [rule, placements, creatives, reset]);
 
@@ -194,37 +199,69 @@ export function RuleForm({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label>Countries (empty = all countries)</Label>
-            <Select onValueChange={addCountry}>
-              <SelectTrigger>
-                <SelectValue placeholder="Add country..." />
-              </SelectTrigger>
-              <SelectContent>
-                {COMMON_COUNTRIES.filter(
-                  (c) => !selectedCountries.includes(c.code)
-                ).map((c) => (
-                  <SelectItem key={c.code} value={c.code}>
-                    {c.name} ({c.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedCountries.length > 0 && (
-              <div className="flex flex-wrap gap-1 pt-1">
-                {selectedCountries.map((code) => (
-                  <Badge key={code} variant="secondary" className="gap-1">
-                    {code}
-                    <button
-                      type="button"
-                      onClick={() => removeCountry(code)}
-                      className="hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="global_rule"
+                checked={isGlobalRule}
+                onCheckedChange={(checked) => {
+                  setIsGlobalRule(!!checked);
+                  if (checked) {
+                    setSelectedCountries([]);
+                    setValue('countries', []);
+                    setValue('priority', 10);
+                  } else {
+                    setValue('priority', 50);
+                  }
+                }}
+              />
+              <Label htmlFor="global_rule" className="text-sm font-normal cursor-pointer">
+                Global fallback (matches all countries)
+              </Label>
+            </div>
+
+            {isGlobalRule ? (
+              <p className="text-xs text-muted-foreground">
+                This rule will match visitors from any country. Priority is set low so regional rules take precedence.
+              </p>
+            ) : (
+              <>
+                <Label>Countries</Label>
+                <Select onValueChange={addCountry}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Add country..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMMON_COUNTRIES.filter(
+                      (c) => !selectedCountries.includes(c.code)
+                    ).map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name} ({c.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedCountries.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {selectedCountries.map((code) => (
+                      <Badge key={code} variant="secondary" className="gap-1">
+                        {code}
+                        <button
+                          type="button"
+                          onClick={() => removeCountry(code)}
+                          className="hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to match all countries, or select specific countries.
+                  </p>
+                )}
+              </>
             )}
           </div>
 

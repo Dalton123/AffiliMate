@@ -369,6 +369,39 @@ function AffiliateAd({ placement }) {
 <AffiliateAd placement="sidebar" />
 ```
 
+### Next.js Server Component
+
+```tsx
+async function AffiliateAd({ placement }: { placement: string }) {
+  const res = await fetch(
+    `https://affilimate.vercel.app/api/v1/serve?placement=${placement}`,
+    {
+      headers: { 'X-API-Key': process.env.AFFILIMATE_API_KEY! },
+      next: { revalidate: 60 }, // Cache for 60 seconds
+    }
+  );
+  const data = await res.json();
+
+  if (!data.creative) return null;
+
+  return (
+    <a href={data.creative.click_url} target="_blank" rel="sponsored noopener">
+      <img
+        src={data.creative.image_url}
+        width={data.creative.width}
+        height={data.creative.height}
+        alt={data.creative.alt_text || ''}
+      />
+    </a>
+  );
+}
+
+// Usage in any Server Component or page
+export default function Page() {
+  return <AffiliateAd placement="sidebar" />;
+}
+```
+
 ### Server-Side (Node.js)
 
 ```javascript
