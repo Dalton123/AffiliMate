@@ -4,6 +4,9 @@ import { validateApiKey } from '@/lib/auth';
 import { selectCreative, selectMultipleCreatives } from '@/lib/selection';
 import { createAdminClient } from '@/lib/supabase/server';
 
+// Base URL for tracking URLs (must be absolute for third-party integrations)
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+
 // Detect country from request headers
 function detectCountry(request: NextRequest, searchParams: URLSearchParams): GeoInfo {
   // 1. Explicit override (highest priority)
@@ -121,7 +124,7 @@ export async function GET(request: NextRequest) {
         creatives.push({
           creative: item.creative,
           impression_id: impressionId,
-          tracking_url: `/api/v1/click/${impressionId}?url=${encodeURIComponent(item.creative.click_url)}`,
+          tracking_url: `${appUrl}/api/v1/click/${impressionId}?url=${encodeURIComponent(item.creative.click_url)}`,
         });
       }
     }
@@ -196,7 +199,7 @@ export async function GET(request: NextRequest) {
     geo,
     impression_id: impressionId,
     tracking_url: result.creative
-      ? `/api/v1/click/${impressionId}?url=${encodeURIComponent(result.creative.click_url)}`
+      ? `${appUrl}/api/v1/click/${impressionId}?url=${encodeURIComponent(result.creative.click_url)}`
       : undefined,
   };
 
