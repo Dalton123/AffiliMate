@@ -232,6 +232,16 @@ export interface AnalyticsResponse {
     clicks: number;
     ctr: number;
   };
+  previousSummary: {
+    impressions: number;
+    clicks: number;
+    ctr: number;
+  } | null;
+  changes: {
+    impressions: number | null;
+    clicks: number | null;
+    ctr: number | null;
+  } | null;
   period: {
     days: number;
     start: string;
