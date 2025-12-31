@@ -52,15 +52,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
   const body: UpdateCreativeRequest = await request.json();
 
-  // Calculate size string if width and height provided
-  let updateData: Record<string, unknown> = {
+  const updateData: Record<string, unknown> = {
     ...body,
     updated_at: new Date().toISOString(),
   };
-
-  if (body.width !== undefined && body.height !== undefined) {
-    updateData.size = body.width && body.height ? `${body.width}x${body.height}` : null;
-  }
 
   const { data, error } = await supabase
     .from('creatives')
