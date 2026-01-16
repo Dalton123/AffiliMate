@@ -1,3 +1,4 @@
+import { placementCache, rulesCache } from './cache';
 import { createAdminClient } from './supabase/server';
 import type { ServeCreative, CreativeFormat } from '@affilimate/types';
 
@@ -55,26 +56,50 @@ export async function selectCreative(params: SelectionParams): Promise<Selection
   const { projectId, placementSlug, country, category, size, format } = params;
   const supabase = await createAdminClient();
 
-  // 1. Fetch placement by project_id + slug
-  const { data: placement, error: placementError } = await supabase
-    .from('placements')
-    .select('id, is_active, fallback_type, fallback_creative_id, fallback_url')
-    .eq('project_id', projectId)
-    .eq('slug', placementSlug)
-    .single();
+  // 1. Fetch placement (with cache)
+  const placementCacheKey = `${projectId}:${placementSlug}`;
+  let placement = placementCache.get(placementCacheKey);
 
-  if (placementError || !placement) {
-    return {
-      creative: null,
-      fallback: true,
-      fallbackType: 'none',
-      rulesMatched: 0,
-      selectionReason: 'Placement not found',
-      error: 'placement_not_found',
+  if (!placement) {
+    const { data: placementData, error: placementError } = await supabase
+      .from('placements')
+      .select('id, is_active, fallback_type, fallback_creative_id, fallback_url')
+      .eq('project_id', projectId)
+      .eq('slug', placementSlug)
+      .single();
+
+    if (placementError || !placementData) {
+      return {
+        creative: null,
+        fallback: true,
+        fallbackType: 'none',
+        rulesMatched: 0,
+        selectionReason: 'Placement not found',
+        error: 'placement_not_found',
+      };
+    }
+
+    // Cache the placement
+    placement = {
+      id: placementData.id,
+      isActive: placementData.is_active,
+      fallbackType: placementData.fallback_type,
+      fallbackCreativeId: placementData.fallback_creative_id,
+      fallbackUrl: placementData.fallback_url,
     };
+    placementCache.set(placementCacheKey, placement);
   }
 
-  if (!placement.is_active) {
+  // Convert cached format to expected format
+  const placementForFallback = {
+    id: placement.id,
+    is_active: placement.isActive,
+    fallback_type: placement.fallbackType,
+    fallback_creative_id: placement.fallbackCreativeId,
+    fallback_url: placement.fallbackUrl,
+  };
+
+  if (!placement.isActive) {
     return {
       creative: null,
       fallback: true,
@@ -85,45 +110,50 @@ export async function selectCreative(params: SelectionParams): Promise<Selection
     };
   }
 
-  // 2. Query targeting_rules with joins
-  const { data: rules, error: rulesError } = await supabase
-    .from('targeting_rules')
-    .select(`
-      id,
-      countries,
-      categories,
-      priority,
-      weight,
-      is_active,
-      creative:creatives (
+  // 2. Query targeting_rules (with cache)
+  const rulesCacheKey = `${projectId}:${placement.id}`;
+  let typedRules = rulesCache.get(rulesCacheKey) as RuleWithCreative[] | undefined;
+
+  if (!typedRules) {
+    const { data: rules, error: rulesError } = await supabase
+      .from('targeting_rules')
+      .select(`
         id,
-        name,
-        click_url,
-        image_url,
-        alt_text,
-        width,
-        height,
-        size,
-        format,
+        countries,
+        categories,
+        priority,
+        weight,
         is_active,
-        start_date,
-        end_date,
-        offer:offers (
+        creative:creatives (
           id,
-          category
+          name,
+          click_url,
+          image_url,
+          alt_text,
+          width,
+          height,
+          size,
+          format,
+          is_active,
+          start_date,
+          end_date,
+          offer:offers (
+            id,
+            category
+          )
         )
-      )
-    `)
-    .eq('placement_id', placement.id)
-    .eq('is_active', true);
+      `)
+      .eq('placement_id', placement.id)
+      .eq('is_active', true);
 
-  if (rulesError) {
-    console.error('Error fetching rules:', rulesError);
-    return applyFallback(supabase, placement, 0, 'Database error fetching rules');
+    if (rulesError) {
+      console.error('Error fetching rules:', rulesError);
+      return applyFallback(supabase, placementForFallback, 0, 'Database error fetching rules');
+    }
+
+    typedRules = (rules || []) as unknown as RuleWithCreative[];
+    rulesCache.set(rulesCacheKey, typedRules);
   }
-
-  // Type the rules properly
-  const typedRules = (rules || []) as unknown as RuleWithCreative[];
 
   // 3. Filter rules
   const today = new Date().toISOString().split('T')[0]!;
@@ -161,7 +191,7 @@ export async function selectCreative(params: SelectionParams): Promise<Selection
 
   // 4. If no matches, apply fallback
   if (filteredRules.length === 0) {
-    return applyFallback(supabase, placement, typedRules.length, 'No rules matched filters');
+    return applyFallback(supabase, placementForFallback, typedRules.length, 'No rules matched filters');
   }
 
   // 5. Sort by priority DESC
@@ -236,25 +266,39 @@ export async function selectMultipleCreatives(
   const { projectId, placementSlug, country, category, size, format, limit } = params;
   const supabase = await createAdminClient();
 
-  // 1. Fetch placement by project_id + slug
-  const { data: placement, error: placementError } = await supabase
-    .from('placements')
-    .select('id, is_active, fallback_type, fallback_creative_id, fallback_url')
-    .eq('project_id', projectId)
-    .eq('slug', placementSlug)
-    .single();
+  // 1. Fetch placement (with cache)
+  const placementCacheKey = `${projectId}:${placementSlug}`;
+  let placement = placementCache.get(placementCacheKey);
 
-  if (placementError || !placement) {
-    return {
-      creatives: [],
-      fallback: true,
-      rulesMatched: 0,
-      selectionReason: 'Placement not found',
-      error: 'placement_not_found',
+  if (!placement) {
+    const { data: placementData, error: placementError } = await supabase
+      .from('placements')
+      .select('id, is_active, fallback_type, fallback_creative_id, fallback_url')
+      .eq('project_id', projectId)
+      .eq('slug', placementSlug)
+      .single();
+
+    if (placementError || !placementData) {
+      return {
+        creatives: [],
+        fallback: true,
+        rulesMatched: 0,
+        selectionReason: 'Placement not found',
+        error: 'placement_not_found',
+      };
+    }
+
+    placement = {
+      id: placementData.id,
+      isActive: placementData.is_active,
+      fallbackType: placementData.fallback_type,
+      fallbackCreativeId: placementData.fallback_creative_id,
+      fallbackUrl: placementData.fallback_url,
     };
+    placementCache.set(placementCacheKey, placement);
   }
 
-  if (!placement.is_active) {
+  if (!placement.isActive) {
     return {
       creatives: [],
       fallback: true,
@@ -264,51 +308,56 @@ export async function selectMultipleCreatives(
     };
   }
 
-  // 2. Query targeting_rules with joins
-  const { data: rules, error: rulesError } = await supabase
-    .from('targeting_rules')
-    .select(`
-      id,
-      countries,
-      categories,
-      priority,
-      weight,
-      is_active,
-      creative:creatives (
+  // 2. Query targeting_rules (with cache)
+  const rulesCacheKey = `${projectId}:${placement.id}`;
+  let typedRules = rulesCache.get(rulesCacheKey) as RuleWithCreative[] | undefined;
+
+  if (!typedRules) {
+    const { data: rules, error: rulesError } = await supabase
+      .from('targeting_rules')
+      .select(`
         id,
-        name,
-        click_url,
-        image_url,
-        alt_text,
-        width,
-        height,
-        size,
-        format,
+        countries,
+        categories,
+        priority,
+        weight,
         is_active,
-        start_date,
-        end_date,
-        offer:offers (
+        creative:creatives (
           id,
-          category
+          name,
+          click_url,
+          image_url,
+          alt_text,
+          width,
+          height,
+          size,
+          format,
+          is_active,
+          start_date,
+          end_date,
+          offer:offers (
+            id,
+            category
+          )
         )
-      )
-    `)
-    .eq('placement_id', placement.id)
-    .eq('is_active', true);
+      `)
+      .eq('placement_id', placement.id)
+      .eq('is_active', true);
 
-  if (rulesError) {
-    console.error('Error fetching rules:', rulesError);
-    return {
-      creatives: [],
-      fallback: true,
-      rulesMatched: 0,
-      selectionReason: 'Database error fetching rules',
-      placementId: placement.id,
-    };
+    if (rulesError) {
+      console.error('Error fetching rules:', rulesError);
+      return {
+        creatives: [],
+        fallback: true,
+        rulesMatched: 0,
+        selectionReason: 'Database error fetching rules',
+        placementId: placement.id,
+      };
+    }
+
+    typedRules = (rules || []) as unknown as RuleWithCreative[];
+    rulesCache.set(rulesCacheKey, typedRules);
   }
-
-  // Type the rules properly
-  const typedRules = (rules || []) as unknown as RuleWithCreative[];
 
   // 3. Filter rules (same logic as single selection)
   const today = new Date().toISOString().split('T')[0]!;

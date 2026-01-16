@@ -34,74 +34,33 @@ export async function GET(request: NextRequest) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Get impressions grouped by creative
-  const { data: impressionData } = await supabase
-    .from('impressions')
-    .select('creative_id')
-    .eq('project_id', project.id)
-    .gte('created_at', startDate.toISOString())
-    .not('creative_id', 'is', null);
-
-  // Get clicks grouped by creative
-  const { data: clickData } = await supabase
-    .from('clicks')
-    .select('creative_id')
-    .eq('project_id', project.id)
-    .gte('created_at', startDate.toISOString())
-    .not('creative_id', 'is', null);
-
-  // Get creative names
-  const { data: creatives } = await supabase
-    .from('creatives')
-    .select('id, name')
-    .eq('project_id', project.id);
-
-  const creativeMap = new Map(creatives?.map((c) => [c.id, c.name]) || []);
-
-  // Aggregate impressions
-  const impressionCounts = new Map<string, number>();
-  impressionData?.forEach((row) => {
-    if (row.creative_id) {
-      impressionCounts.set(
-        row.creative_id,
-        (impressionCounts.get(row.creative_id) || 0) + 1
-      );
-    }
+  // Use database function for aggregation
+  const { data, error } = await supabase.rpc('get_stats_by_creative', {
+    p_project_id: project.id,
+    p_start_date: startDate.toISOString(),
   });
 
-  // Aggregate clicks
-  const clickCounts = new Map<string, number>();
-  clickData?.forEach((row) => {
-    if (row.creative_id) {
-      clickCounts.set(
-        row.creative_id,
-        (clickCounts.get(row.creative_id) || 0) + 1
-      );
-    }
-  });
+  if (error) {
+    console.error('Analytics error:', error);
+    return NextResponse.json<ApiError>(
+      { error: 'query_failed', message: 'Failed to fetch analytics' },
+      { status: 500 }
+    );
+  }
 
-  // Build stats
-  const allCreativeIds = new Set([
-    ...impressionCounts.keys(),
-    ...clickCounts.keys(),
-  ]);
-
-  const stats: CreativeStats[] = Array.from(allCreativeIds)
-    .map((creativeId) => {
-      const impressions = impressionCounts.get(creativeId) || 0;
-      const clicks = clickCounts.get(creativeId) || 0;
-      const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-
-      return {
-        creative_id: creativeId,
-        creative_name: creativeMap.get(creativeId) || 'Unknown',
-        impressions,
-        clicks,
-        ctr: Math.round(ctr * 100) / 100,
-      };
-    })
-    .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 10);
+  const stats: CreativeStats[] = (data || []).map((row: {
+    creative_id: string;
+    creative_name: string;
+    impressions: number;
+    clicks: number;
+    ctr: number;
+  }) => ({
+    creative_id: row.creative_id,
+    creative_name: row.creative_name,
+    impressions: Number(row.impressions),
+    clicks: Number(row.clicks),
+    ctr: Number(row.ctr),
+  }));
 
   return NextResponse.json({ data: stats });
 }

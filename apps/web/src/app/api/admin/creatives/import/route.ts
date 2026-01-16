@@ -87,131 +87,186 @@ export async function POST(request: NextRequest) {
   const source = body.source || 'awin';
   const results: ImportResult[] = [];
 
-  // Process each snippet
+  // Phase 1: Parse all snippets (CPU only, no DB)
+  interface ParsedSnippet {
+    index: number;
+    rawHtml: string;
+    parsed: ReturnType<typeof parseAwinSnippet>;
+    width: number | null;
+    height: number | null;
+    name: string;
+  }
+
+  const validSnippets: ParsedSnippet[] = [];
+  const failedSnippets: { index: number; error: string }[] = [];
+
   for (let i = 0; i < body.snippets.length; i++) {
     const snippet = body.snippets[i];
     if (!snippet) continue;
     const rawHtml = snippet.trim();
 
-    if (!rawHtml) {
-      continue; // Skip empty snippets
-    }
+    if (!rawHtml) continue;
 
-    // Parse the snippet
     const parsed = parseAwinSnippet(rawHtml);
 
-    // Create import record
-    const { data: importRecord, error: importError } = await supabase
-      .from('creative_imports')
-      .insert({
-        project_id: project.id,
-        source,
-        imported_by: user.id,
-        raw_html: rawHtml,
-        parsed_data: parsed,
-        status: parsed ? 'pending' : 'failed',
-        error_message: parsed ? null : 'Failed to parse snippet - missing click URL',
-      })
-      .select()
-      .single();
-
-    if (importError) {
-      results.push({
-        index: i,
-        status: 'failed',
-        error: `Database error: ${importError.message}`,
-      });
-      continue;
-    }
-
-    // If parsing failed, record error and continue
     if (!parsed || !parsed.click_url) {
-      results.push({
+      failedSnippets.push({
         index: i,
-        status: 'failed',
         error: 'Could not parse snippet - missing click URL',
       });
       continue;
     }
 
-    // Use client-detected dimensions if HTML didn't have them
     const clientDims = body.dimensions?.[i];
     const width = parsed.width || clientDims?.width || null;
     const height = parsed.height || clientDims?.height || null;
+    const name = width && height ? `${width}x${height} Banner` : generateCreativeName(parsed);
 
-    // Create the creative
-    const creativeName = width && height ? `${width}x${height} Banner` : generateCreativeName(parsed);
-    const { data: creative, error: creativeError } = await supabase
-      .from('creatives')
-      .insert({
-        project_id: project.id,
-        offer_id: body.offer_id,
-        name: creativeName,
-        click_url: parsed.click_url,
-        image_url: parsed.image_url,
-        width,
-        height,
-        format: 'banner',
-        import_id: importRecord.id,
-      })
-      .select()
-      .single();
+    validSnippets.push({ index: i, rawHtml, parsed, width, height, name });
+  }
 
-    if (creativeError) {
-      // Update import record to failed
-      await supabase
-        .from('creative_imports')
-        .update({
-          status: 'failed',
-          error_message: creativeError.message,
-        })
-        .eq('id', importRecord.id);
+  // Add failed parse results
+  for (const failed of failedSnippets) {
+    results.push({
+      index: failed.index,
+      status: 'failed',
+      error: failed.error,
+    });
+  }
 
+  // If no valid snippets, return early
+  if (validSnippets.length === 0) {
+    const response: ImportCreativesResponse = {
+      imported: 0,
+      failed: failedSnippets.length,
+      results,
+    };
+    return NextResponse.json(response, { status: 201 });
+  }
+
+  // Phase 2: Batch insert import records
+  const importRecords = validSnippets.map((s) => ({
+    project_id: project.id,
+    source,
+    imported_by: user.id,
+    raw_html: s.rawHtml,
+    parsed_data: s.parsed,
+    status: 'pending' as const,
+  }));
+
+  const { data: insertedImports, error: importError } = await supabase
+    .from('creative_imports')
+    .insert(importRecords)
+    .select('id');
+
+  if (importError || !insertedImports) {
+    // Fallback: mark all as failed
+    for (const s of validSnippets) {
       results.push({
-        index: i,
+        index: s.index,
         status: 'failed',
-        error: `Failed to create creative: ${creativeError.message}`,
+        error: `Database error creating import records: ${importError?.message}`,
       });
-      continue;
     }
+    const response: ImportCreativesResponse = {
+      imported: 0,
+      failed: results.length,
+      results,
+    };
+    return NextResponse.json(response, { status: 201 });
+  }
 
-    // Update import record with creative_id and status
+  // Phase 3: Batch insert creatives
+  const creativeRecords = validSnippets.map((s, idx) => ({
+    project_id: project.id,
+    offer_id: body.offer_id,
+    name: s.name,
+    click_url: s.parsed!.click_url,
+    image_url: s.parsed!.image_url,
+    width: s.width,
+    height: s.height,
+    format: 'banner' as const,
+    import_id: insertedImports[idx]?.id,
+  }));
+
+  const { data: insertedCreatives, error: creativeError } = await supabase
+    .from('creatives')
+    .insert(creativeRecords)
+    .select('id');
+
+  if (creativeError || !insertedCreatives) {
+    // Update import records to failed
+    const importIds = insertedImports.map((r) => r.id);
     await supabase
       .from('creative_imports')
-      .update({
-        creative_id: creative.id,
-        status: 'processed',
-      })
-      .eq('id', importRecord.id);
+      .update({ status: 'failed', error_message: creativeError?.message })
+      .in('id', importIds);
 
-    // Optionally create targeting rule
-    if (body.auto_create_rules && body.target_placement_id) {
-      await supabase.from('targeting_rules').insert({
-        project_id: project.id,
-        placement_id: body.target_placement_id,
-        creative_id: creative.id,
-        countries: body.default_countries || [],
-        priority: 50,
-        weight: 100,
+    for (const s of validSnippets) {
+      results.push({
+        index: s.index,
+        status: 'failed',
+        error: `Failed to create creative: ${creativeError?.message}`,
       });
     }
+    const response: ImportCreativesResponse = {
+      imported: 0,
+      failed: results.length,
+      results,
+    };
+    return NextResponse.json(response, { status: 201 });
+  }
+
+  // Phase 4: Batch update import records with creative IDs
+  const updatePromises = insertedImports.map((importRec, idx) =>
+    supabase
+      .from('creative_imports')
+      .update({
+        creative_id: insertedCreatives[idx]?.id,
+        status: 'processed',
+      })
+      .eq('id', importRec.id)
+  );
+  await Promise.all(updatePromises);
+
+  // Phase 5: Batch insert targeting rules if needed
+  if (body.auto_create_rules && body.target_placement_id) {
+    const ruleRecords = insertedCreatives.map((creative) => ({
+      project_id: project.id,
+      placement_id: body.target_placement_id,
+      creative_id: creative.id,
+      countries: body.default_countries || [],
+      priority: 50,
+      weight: 100,
+    }));
+
+    await supabase.from('targeting_rules').insert(ruleRecords);
+  }
+
+  // Build success results
+  for (let i = 0; i < validSnippets.length; i++) {
+    const s = validSnippets[i]!;
+    const creative = insertedCreatives[i];
 
     results.push({
-      index: i,
+      index: s.index,
       status: 'success',
-      creative_id: creative.id,
+      creative_id: creative?.id,
       parsed: {
-        click_url: parsed.click_url,
-        image_url: parsed.image_url,
-        width: parsed.width,
-        height: parsed.height,
+        click_url: s.parsed!.click_url!,
+        image_url: s.parsed!.image_url,
+        width: s.parsed!.width,
+        height: s.parsed!.height,
       },
     });
   }
 
+  // Sort results by original index
+  results.sort((a, b) => a.index - b.index);
+
   const response: ImportCreativesResponse = {
-    imported: results.filter((r) => r.status === 'success').length,
-    failed: results.filter((r) => r.status === 'failed').length,
+    imported: validSnippets.length,
+    failed: failedSnippets.length,
     results,
   };
 

@@ -1,4 +1,5 @@
 import { hashApiKey } from './api-key-utils';
+import { apiKeyCache } from './cache';
 import { createAdminClient } from './supabase/server';
 
 export type ApiKeyValidationResult =
@@ -19,6 +20,23 @@ export async function validateApiKey(apiKey: string | null): Promise<ApiKeyValid
   // Hash the key for lookup
   const keyHash = hashApiKey(apiKey);
 
+  // Check cache first
+  const cached = apiKeyCache.get(keyHash);
+  if (cached) {
+    // Validate cached data
+    if (!cached.isActive) {
+      return { valid: false, error: 'api_key_inactive' };
+    }
+    if (cached.expiresAt && new Date(cached.expiresAt) < new Date()) {
+      apiKeyCache.delete(keyHash); // Remove expired from cache
+      return { valid: false, error: 'api_key_expired' };
+    }
+    if (!cached.scopes.includes('serve')) {
+      return { valid: false, error: 'insufficient_scope' };
+    }
+    return { valid: true, projectId: cached.projectId };
+  }
+
   // Use admin client to bypass RLS
   const supabase = await createAdminClient();
 
@@ -32,6 +50,14 @@ export async function validateApiKey(apiKey: string | null): Promise<ApiKeyValid
   if (error || !apiKeyRecord) {
     return { valid: false, error: 'invalid_api_key' };
   }
+
+  // Cache the result (even if invalid - we cache the data, validate on read)
+  apiKeyCache.set(keyHash, {
+    projectId: apiKeyRecord.project_id,
+    isActive: apiKeyRecord.is_active,
+    expiresAt: apiKeyRecord.expires_at,
+    scopes: apiKeyRecord.scopes as string[],
+  });
 
   // Check if key is active
   if (!apiKeyRecord.is_active) {

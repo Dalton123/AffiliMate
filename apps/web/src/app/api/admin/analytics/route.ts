@@ -42,37 +42,38 @@ export async function GET(request: NextRequest) {
   const previousStart = new Date(previousEnd);
   previousStart.setDate(previousStart.getDate() - days);
 
-  // Get current period impressions count
-  const { count: currentImpressionCount } = await supabase
-    .from('impressions')
-    .select('*', { count: 'exact', head: true })
-    .eq('project_id', project.id)
-    .gte('created_at', currentStart.toISOString())
-    .lt('created_at', currentEnd.toISOString());
-
-  // Get current period clicks count
-  const { count: currentClickCount } = await supabase
-    .from('clicks')
-    .select('*', { count: 'exact', head: true })
-    .eq('project_id', project.id)
-    .gte('created_at', currentStart.toISOString())
-    .lt('created_at', currentEnd.toISOString());
-
-  // Get previous period impressions count
-  const { count: previousImpressionCount } = await supabase
-    .from('impressions')
-    .select('*', { count: 'exact', head: true })
-    .eq('project_id', project.id)
-    .gte('created_at', previousStart.toISOString())
-    .lt('created_at', previousEnd.toISOString());
-
-  // Get previous period clicks count
-  const { count: previousClickCount } = await supabase
-    .from('clicks')
-    .select('*', { count: 'exact', head: true })
-    .eq('project_id', project.id)
-    .gte('created_at', previousStart.toISOString())
-    .lt('created_at', previousEnd.toISOString());
+  // Run all 4 count queries in parallel
+  const [
+    { count: currentImpressionCount },
+    { count: currentClickCount },
+    { count: previousImpressionCount },
+    { count: previousClickCount },
+  ] = await Promise.all([
+    supabase
+      .from('impressions')
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', project.id)
+      .gte('created_at', currentStart.toISOString())
+      .lt('created_at', currentEnd.toISOString()),
+    supabase
+      .from('clicks')
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', project.id)
+      .gte('created_at', currentStart.toISOString())
+      .lt('created_at', currentEnd.toISOString()),
+    supabase
+      .from('impressions')
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', project.id)
+      .gte('created_at', previousStart.toISOString())
+      .lt('created_at', previousEnd.toISOString()),
+    supabase
+      .from('clicks')
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', project.id)
+      .gte('created_at', previousStart.toISOString())
+      .lt('created_at', previousEnd.toISOString()),
+  ]);
 
   const impressions = currentImpressionCount || 0;
   const clicks = currentClickCount || 0;

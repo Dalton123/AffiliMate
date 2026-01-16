@@ -34,65 +34,31 @@ export async function GET(request: NextRequest) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Get impressions grouped by country
-  const { data: impressionData } = await supabase
-    .from('impressions')
-    .select('country')
-    .eq('project_id', project.id)
-    .gte('created_at', startDate.toISOString())
-    .not('country', 'is', null);
-
-  // Get clicks grouped by country
-  const { data: clickData } = await supabase
-    .from('clicks')
-    .select('country')
-    .eq('project_id', project.id)
-    .gte('created_at', startDate.toISOString())
-    .not('country', 'is', null);
-
-  // Aggregate impressions by country
-  const impressionCounts = new Map<string, number>();
-  impressionData?.forEach((row) => {
-    if (row.country) {
-      impressionCounts.set(
-        row.country,
-        (impressionCounts.get(row.country) || 0) + 1
-      );
-    }
+  // Use database function for aggregation
+  const { data, error } = await supabase.rpc('get_stats_by_country', {
+    p_project_id: project.id,
+    p_start_date: startDate.toISOString(),
   });
 
-  // Aggregate clicks by country
-  const clickCounts = new Map<string, number>();
-  clickData?.forEach((row) => {
-    if (row.country) {
-      clickCounts.set(
-        row.country,
-        (clickCounts.get(row.country) || 0) + 1
-      );
-    }
-  });
+  if (error) {
+    console.error('Analytics error:', error);
+    return NextResponse.json<ApiError>(
+      { error: 'query_failed', message: 'Failed to fetch analytics' },
+      { status: 500 }
+    );
+  }
 
-  // Build stats from all countries with impressions or clicks
-  const allCountries = new Set([
-    ...impressionCounts.keys(),
-    ...clickCounts.keys(),
-  ]);
-
-  const stats: CountryStats[] = Array.from(allCountries)
-    .map((country) => {
-      const impressions = impressionCounts.get(country) || 0;
-      const clicks = clickCounts.get(country) || 0;
-      const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-
-      return {
-        country,
-        impressions,
-        clicks,
-        ctr: Math.round(ctr * 100) / 100,
-      };
-    })
-    .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 10);
+  const stats: CountryStats[] = (data || []).map((row: {
+    country: string;
+    impressions: number;
+    clicks: number;
+    ctr: number;
+  }) => ({
+    country: row.country,
+    impressions: Number(row.impressions),
+    clicks: Number(row.clicks),
+    ctr: Number(row.ctr),
+  }));
 
   return NextResponse.json({ data: stats });
 }

@@ -34,77 +34,33 @@ export async function GET(request: NextRequest) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  // Get impressions grouped by placement
-  const { data: impressionData } = await supabase
-    .from('impressions')
-    .select('placement_id')
-    .eq('project_id', project.id)
-    .gte('created_at', startDate.toISOString());
-
-  // Get placement names
-  const { data: placements } = await supabase
-    .from('placements')
-    .select('id, name')
-    .eq('project_id', project.id);
-
-  const placementMap = new Map(placements?.map((p) => [p.id, p.name]) || []);
-
-  // Aggregate impressions
-  const impressionCounts = new Map<string, number>();
-  impressionData?.forEach((row) => {
-    if (row.placement_id) {
-      impressionCounts.set(
-        row.placement_id,
-        (impressionCounts.get(row.placement_id) || 0) + 1
-      );
-    }
+  // Use database function for aggregation
+  const { data, error } = await supabase.rpc('get_stats_by_placement', {
+    p_project_id: project.id,
+    p_start_date: startDate.toISOString(),
   });
 
-  // Get clicks - need to join through impressions to get placement
-  const { data: clickData } = await supabase
-    .from('clicks')
-    .select('impression_id')
-    .eq('project_id', project.id)
-    .gte('created_at', startDate.toISOString())
-    .not('impression_id', 'is', null);
-
-  // Get impression -> placement mapping for clicks
-  const impressionIds = clickData?.map((c) => c.impression_id).filter(Boolean) || [];
-  const clickCountByPlacement = new Map<string, number>();
-
-  if (impressionIds.length > 0) {
-    const { data: impressionsForClicks } = await supabase
-      .from('impressions')
-      .select('id, placement_id')
-      .in('id', impressionIds);
-
-    impressionsForClicks?.forEach((imp) => {
-      if (imp.placement_id) {
-        clickCountByPlacement.set(
-          imp.placement_id,
-          (clickCountByPlacement.get(imp.placement_id) || 0) + 1
-        );
-      }
-    });
+  if (error) {
+    console.error('Analytics error:', error);
+    return NextResponse.json<ApiError>(
+      { error: 'query_failed', message: 'Failed to fetch analytics' },
+      { status: 500 }
+    );
   }
 
-  // Build stats
-  const stats: PlacementStats[] = Array.from(impressionCounts.keys())
-    .map((placementId) => {
-      const impressions = impressionCounts.get(placementId) || 0;
-      const clicks = clickCountByPlacement.get(placementId) || 0;
-      const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-
-      return {
-        placement_id: placementId,
-        placement_name: placementMap.get(placementId) || 'Unknown',
-        impressions,
-        clicks,
-        ctr: Math.round(ctr * 100) / 100,
-      };
-    })
-    .sort((a, b) => b.impressions - a.impressions)
-    .slice(0, 10);
+  const stats: PlacementStats[] = (data || []).map((row: {
+    placement_id: string;
+    placement_name: string;
+    impressions: number;
+    clicks: number;
+    ctr: number;
+  }) => ({
+    placement_id: row.placement_id,
+    placement_name: row.placement_name,
+    impressions: Number(row.impressions),
+    clicks: Number(row.clicks),
+    ctr: Number(row.ctr),
+  }));
 
   return NextResponse.json({ data: stats });
 }
