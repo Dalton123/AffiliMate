@@ -101,13 +101,13 @@ export async function fetchAwinPromotions(
 
   // Build request body with filters
   // Valid filter fields: advertiserIds, exclusiveOnly, membership, regionCodes, status, type, updatedSince
+  // Start with minimal filters to debug - just membership
   const requestBody = {
     filters: {
       membership: 'joined', // Only get offers from advertisers we're joined to
-      status: 'active',
       ...(options.promotionType && { type: options.promotionType }),
       ...(options.region && { regionCodes: [options.region] }),
-      ...(options.advertiserId && { advertiserIds: [options.advertiserId] }), // string array
+      ...(options.advertiserId && { advertiserIds: [options.advertiserId] }),
     },
     pagination: {
       page: 1,
