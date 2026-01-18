@@ -46,12 +46,12 @@ interface AwinPromotionRaw {
   description: string;
   terms?: string;
   type: string;
-  voucher?: {
-    code?: string;
-  };
+  code?: string; // voucher code at top level
+  url: string;
   urlTracking: string;
-  startsAt: string;
-  endsAt?: string;
+  startDate: string;
+  endDate?: string;
+  status?: string;
   regions?: {
     all: boolean;
     list?: Array<{ name: string; countryCode: string }>;
@@ -60,6 +60,7 @@ interface AwinPromotionRaw {
   advertiser?: {
     id: number;
     name: string;
+    joined?: boolean;
   };
 }
 
@@ -164,19 +165,21 @@ export async function fetchAwinPromotions(
 /**
  * Normalize raw Awin API response to our standard format.
  */
-function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { offers?: AwinPromotionRaw[] }): AwinPromotion[] {
-  // Handle various response formats
+function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { data?: AwinPromotionRaw[] }): AwinPromotion[] {
+  // Handle various response formats - Awin uses "data" key
   let raw: AwinPromotionRaw[];
   if (Array.isArray(data)) {
     raw = data;
+  } else if ('data' in data && Array.isArray(data.data)) {
+    raw = data.data;
   } else if ('promotions' in data && Array.isArray(data.promotions)) {
     raw = data.promotions;
-  } else if ('offers' in data && Array.isArray(data.offers)) {
-    raw = data.offers;
   } else {
     console.warn('[Awin] Unknown response structure, keys:', Object.keys(data));
     raw = [];
   }
+
+  console.log('[Awin] Processing', raw.length, 'promotions');
 
   return raw.map((promo) => ({
     id: String(promo.promotionId),
@@ -184,10 +187,10 @@ function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { offe
     description: promo.description,
     terms: promo.terms,
     type: promo.type === 'voucher' ? 'voucher' : 'promotion',
-    voucherCode: promo.voucher?.code,
+    voucherCode: promo.code, // voucher code at top level
     url: promo.urlTracking,
-    startDate: promo.startsAt,
-    endDate: promo.endsAt,
+    startDate: promo.startDate,
+    endDate: promo.endDate,
     regions: promo.regions?.all
       ? ['ALL']
       : (promo.regions?.list?.map((r) => r.countryCode) ?? []),
