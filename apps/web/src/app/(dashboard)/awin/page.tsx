@@ -63,7 +63,7 @@ export default function AwinPage() {
 
   const onSync = async () => {
     try {
-      await syncMutation.mutateAsync();
+      await syncMutation.mutateAsync(undefined);
     } catch (error) {
       // Error handled by mutation
     }

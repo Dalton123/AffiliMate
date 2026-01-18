@@ -89,7 +89,7 @@ export default function DealsPage() {
   };
 
   const handleSync = async () => {
-    await syncMutation.mutateAsync();
+    await syncMutation.mutateAsync(undefined);
   };
 
   const columns = useMemo(
