@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     .eq('project_id', validation.projectId)
     .eq('is_active', true)
     // Match deals for this country OR deals with "ALL" regions
-    .or(`regions.cs.{"${geo.country}"},regions.cs.{"ALL"}`)
+    .or(`regions.cs.{${geo.country}},regions.cs.{ALL}`)
     .or(`end_date.is.null,end_date.gte.${new Date().toISOString().split('T')[0]}`)
     .order('is_featured', { ascending: false })
     .order('sort_order', { ascending: true })
