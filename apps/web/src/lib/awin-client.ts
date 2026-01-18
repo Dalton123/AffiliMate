@@ -102,7 +102,6 @@ export async function fetchAwinPromotions(
 
   // Build request body with filters
   // Valid filter fields: advertiserIds, exclusiveOnly, membership, regionCodes, status, type, updatedSince
-  // Start with minimal filters to debug - just membership
   const requestBody = {
     filters: {
       membership: 'joined', // Only get offers from advertisers we're joined to
@@ -144,13 +143,7 @@ export async function fetchAwinPromotions(
     }
 
     const data = await response.json();
-
-    // Debug: log raw response structure
-    console.log('[Awin] Raw response keys:', Object.keys(data));
-    console.log('[Awin] Raw response sample:', JSON.stringify(data).slice(0, 500));
-
     const promotions = normalizePromotions(data);
-    console.log('[Awin] Normalized promotions count:', promotions.length);
 
     // Cache the results
     promotionsCache.set(cacheKey, promotions);
@@ -175,11 +168,8 @@ function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { data
   } else if ('promotions' in data && Array.isArray(data.promotions)) {
     raw = data.promotions;
   } else {
-    console.warn('[Awin] Unknown response structure, keys:', Object.keys(data));
     raw = [];
   }
-
-  console.log('[Awin] Processing', raw.length, 'promotions');
 
   return raw.map((promo) => ({
     id: String(promo.promotionId),
