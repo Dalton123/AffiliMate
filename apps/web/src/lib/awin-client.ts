@@ -143,7 +143,13 @@ export async function fetchAwinPromotions(
     }
 
     const data = await response.json();
+
+    // Debug: log raw response structure
+    console.log('[Awin] Raw response keys:', Object.keys(data));
+    console.log('[Awin] Raw response sample:', JSON.stringify(data).slice(0, 500));
+
     const promotions = normalizePromotions(data);
+    console.log('[Awin] Normalized promotions count:', promotions.length);
 
     // Cache the results
     promotionsCache.set(cacheKey, promotions);
@@ -158,9 +164,19 @@ export async function fetchAwinPromotions(
 /**
  * Normalize raw Awin API response to our standard format.
  */
-function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse): AwinPromotion[] {
-  // Handle both array and object responses
-  const raw = Array.isArray(data) ? data : (data.promotions ?? []);
+function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { offers?: AwinPromotionRaw[] }): AwinPromotion[] {
+  // Handle various response formats
+  let raw: AwinPromotionRaw[];
+  if (Array.isArray(data)) {
+    raw = data;
+  } else if ('promotions' in data && Array.isArray(data.promotions)) {
+    raw = data.promotions;
+  } else if ('offers' in data && Array.isArray(data.offers)) {
+    raw = data.offers;
+  } else {
+    console.warn('[Awin] Unknown response structure, keys:', Object.keys(data));
+    raw = [];
+  }
 
   return raw.map((promo) => ({
     id: String(promo.promotionId),
