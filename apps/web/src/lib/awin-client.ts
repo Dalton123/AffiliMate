@@ -171,13 +171,18 @@ function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { data
     raw = [];
   }
 
-  return raw.map((promo) => ({
+  return raw.map((promo) => {
+    // Debug: log first promo with type=voucher to see code field
+    if (promo.type === 'voucher' && raw.indexOf(promo) === raw.findIndex(p => p.type === 'voucher')) {
+      console.log('[Awin] Sample voucher promo:', JSON.stringify(promo).slice(0, 800));
+    }
+    return {
     id: String(promo.promotionId),
     title: promo.title,
     description: promo.description,
     terms: promo.terms,
     type: promo.type === 'voucher' ? 'voucher' : 'promotion',
-    voucherCode: promo.code, // voucher code at top level
+    voucherCode: promo.code || (promo as any).voucherCode || (promo as any).voucher?.code, // try multiple field names
     url: promo.urlTracking,
     startDate: promo.startDate,
     endDate: promo.endDate,
@@ -187,7 +192,8 @@ function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse | { data
     promotionCategories: promo.categories?.map((c) => c.name) ?? [],
     advertiserName: promo.advertiser?.name,
     advertiserId: promo.advertiser ? String(promo.advertiser.id) : undefined,
-  }));
+  };
+  });
 }
 
 /**
