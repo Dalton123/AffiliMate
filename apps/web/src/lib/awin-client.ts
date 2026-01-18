@@ -100,17 +100,18 @@ export async function fetchAwinPromotions(
   const url = new URL(`${AWIN_API_BASE}/publisher/${publisherId}/promotions`);
 
   // Build request body with filters
+  // Valid filter fields: advertiserIds, exclusiveOnly, membership, regionCodes, status, type, updatedSince
   const requestBody = {
     filters: {
       membership: 'joined', // Only get offers from advertisers we're joined to
-      promotionStatus: 'active',
-      ...(options.promotionType && { promotionType: options.promotionType }),
+      status: 'active',
+      ...(options.promotionType && { type: options.promotionType }),
       ...(options.region && { regionCodes: [options.region] }),
-      ...(options.category && { categoryIds: [options.category] }),
-      ...(options.advertiserId && { advertiserIds: [Number(options.advertiserId)] }),
+      ...(options.advertiserId && { advertiserIds: [options.advertiserId] }), // string array
     },
     pagination: {
-      pageSize: 200, // Max allowed by Awin API
+      page: 1,
+      pageSize: 100,
     },
   };
 
