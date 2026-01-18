@@ -39,18 +39,24 @@ export interface AwinApiResponse {
 }
 
 // Raw API response shape (before normalization)
+// Based on actual Awin Promotions POST API response
 interface AwinPromotionRaw {
-  id: number;
+  promotionId: number;
   title: string;
   description: string;
   terms?: string;
   type: string;
-  voucherCode?: string;
-  url: string;
-  startDate: string;
-  endDate?: string;
-  regions?: Array<{ region: string }>;
-  promotionCategories?: Array<{ id: number; name: string }>;
+  voucher?: {
+    code?: string;
+  };
+  urlTracking: string;
+  startsAt: string;
+  endsAt?: string;
+  regions?: {
+    all: boolean;
+    list?: Array<{ name: string; countryCode: string }>;
+  };
+  categories?: Array<{ id: number; name: string }>;
   advertiser?: {
     id: number;
     name: string;
@@ -90,28 +96,33 @@ export async function fetchAwinPromotions(
     return cached;
   }
 
-  // Build URL with query params
-  const url = new URL(`${AWIN_API_BASE}/publishers/${publisherId}/promotions`);
+  // Build URL - note: singular /publisher/ not /publishers/
+  const url = new URL(`${AWIN_API_BASE}/publisher/${publisherId}/promotions`);
+  url.searchParams.set('accessToken', token);
 
-  if (options.region) {
-    url.searchParams.set('region', options.region);
-  }
-  if (options.category) {
-    url.searchParams.set('promotionCategory', options.category);
-  }
-  if (options.promotionType) {
-    url.searchParams.set('promotionType', options.promotionType);
-  }
-  if (options.advertiserId) {
-    url.searchParams.set('advertiserId', options.advertiserId);
-  }
+  // Build request body with filters
+  const requestBody = {
+    filters: {
+      membership: 'joined', // Only get offers from advertisers we're joined to
+      status: 'active',
+      ...(options.promotionType && { type: options.promotionType }),
+      ...(options.region && { regionCodes: [options.region] }),
+      ...(options.category && { categoryIds: [options.category] }),
+      ...(options.advertiserId && { advertiserIds: [Number(options.advertiserId)] }),
+    },
+    pagination: {
+      pageSize: 200, // Max allowed by Awin API
+    },
+  };
 
   try {
     const response = await fetch(url.toString(), {
+      method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
         Accept: 'application/json',
       },
+      body: JSON.stringify(requestBody),
       // Next.js fetch caching
       next: { revalidate: 600 }, // 10 minutes
     });
@@ -151,17 +162,19 @@ function normalizePromotions(data: AwinPromotionRaw[] | AwinApiResponse): AwinPr
   const raw = Array.isArray(data) ? data : (data.promotions ?? []);
 
   return raw.map((promo) => ({
-    id: String(promo.id),
+    id: String(promo.promotionId),
     title: promo.title,
     description: promo.description,
     terms: promo.terms,
     type: promo.type === 'voucher' ? 'voucher' : 'promotion',
-    voucherCode: promo.voucherCode,
-    url: promo.url,
-    startDate: promo.startDate,
-    endDate: promo.endDate,
-    regions: promo.regions?.map((r) => r.region) ?? [],
-    promotionCategories: promo.promotionCategories?.map((c) => c.name) ?? [],
+    voucherCode: promo.voucher?.code,
+    url: promo.urlTracking,
+    startDate: promo.startsAt,
+    endDate: promo.endsAt,
+    regions: promo.regions?.all
+      ? ['ALL']
+      : (promo.regions?.list?.map((r) => r.countryCode) ?? []),
+    promotionCategories: promo.categories?.map((c) => c.name) ?? [],
     advertiserName: promo.advertiser?.name,
     advertiserId: promo.advertiser ? String(promo.advertiser.id) : undefined,
   }));
