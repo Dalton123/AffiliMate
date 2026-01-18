@@ -98,14 +98,13 @@ export async function fetchAwinPromotions(
 
   // Build URL - note: singular /publisher/ not /publishers/
   const url = new URL(`${AWIN_API_BASE}/publisher/${publisherId}/promotions`);
-  url.searchParams.set('accessToken', token);
 
   // Build request body with filters
   const requestBody = {
     filters: {
       membership: 'joined', // Only get offers from advertisers we're joined to
-      status: 'active',
-      ...(options.promotionType && { type: options.promotionType }),
+      promotionStatus: 'active',
+      ...(options.promotionType && { promotionType: options.promotionType }),
       ...(options.region && { regionCodes: [options.region] }),
       ...(options.category && { categoryIds: [options.category] }),
       ...(options.advertiserId && { advertiserIds: [Number(options.advertiserId)] }),
@@ -119,6 +118,7 @@ export async function fetchAwinPromotions(
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
