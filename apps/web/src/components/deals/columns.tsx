@@ -1,7 +1,13 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, Pencil, Trash2, Star, ExternalLink } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Star,
+  ExternalLink,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +36,9 @@ export function getColumns(callbacks: ColumnCallbacks): ColumnDef<Deal>[] {
         return (
           <div className="max-w-[300px]">
             <div className="flex items-center gap-2">
-              <span className="font-medium truncate">{deal.title}</span>
+              <span className="font-medium inline-block whitespace-normal">
+                {deal.title}
+              </span>
               {deal.is_featured && (
                 <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
               )}
@@ -67,7 +75,12 @@ export function getColumns(callbacks: ColumnCallbacks): ColumnDef<Deal>[] {
         }
         const display = regions.slice(0, 3).join(", ");
         const more = regions.length > 3 ? ` +${regions.length - 3}` : "";
-        return <span className="text-sm">{display}{more}</span>;
+        return (
+          <span className="text-sm">
+            {display}
+            {more}
+          </span>
+        );
       },
     },
     {
@@ -124,7 +137,9 @@ export function getColumns(callbacks: ColumnCallbacks): ColumnDef<Deal>[] {
                 Open Link
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => callbacks.onToggleFeatured(deal)}>
+              <DropdownMenuItem
+                onClick={() => callbacks.onToggleFeatured(deal)}
+              >
                 <Star className="mr-2 h-4 w-4" />
                 {deal.is_featured ? "Unfeature" : "Feature"}
               </DropdownMenuItem>
