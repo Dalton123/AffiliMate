@@ -72,6 +72,9 @@ export function CreativeForm({
 
   const format = watch('format');
   const offerId = watch('offer_id');
+  const imageUrl = watch('image_url');
+  const currentWidth = watch('width');
+  const currentHeight = watch('height');
   const [snippet, setSnippet] = useState('');
 
   // Handle pasting Awin snippet
@@ -210,6 +213,21 @@ export function CreativeForm({
               placeholder="https://www.awin1.com/cshow.php?..."
               rows={2}
             />
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt="Preview"
+                className="max-w-[100px] max-h-[60px] object-contain rounded border border-border"
+                onLoad={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  if (img.naturalWidth && img.naturalHeight) {
+                    // Only auto-fill if width/height are currently empty
+                    if (!currentWidth) setValue('width', img.naturalWidth);
+                    if (!currentHeight) setValue('height', img.naturalHeight);
+                  }
+                }}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-4">

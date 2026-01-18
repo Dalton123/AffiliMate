@@ -168,3 +168,65 @@ export interface DailyStat {
   clicks: number;
   created_at: string;
 }
+
+// ===========================================
+// Awin Integration Types
+// ===========================================
+
+export type AwinSyncStatus = 'pending' | 'success' | 'failed';
+
+export interface AwinConnection {
+  id: string;
+  project_id: string;
+  publisher_id: string;
+  api_token_encrypted: string; // AES-256-GCM encrypted
+  is_active: boolean;
+  last_sync_at: string | null;
+  sync_status: AwinSyncStatus;
+  sync_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Deal {
+  id: string;
+  project_id: string;
+  offer_id: string | null;
+
+  // Awin data (null if manually created)
+  awin_promotion_id: string | null;
+  awin_advertiser_id: string | null;
+  awin_advertiser_name: string | null;
+
+  // Deal content
+  title: string;
+  description: string | null;
+  terms: string | null;
+  voucher_code: string | null; // null = no code / auto-applied
+
+  // Tracking
+  tracking_url: string;
+
+  // Validity
+  start_date: string | null;
+  end_date: string | null;
+
+  // Targeting (GIN indexed arrays)
+  regions: string[]; // ISO 3166-1 alpha-2 codes
+  categories: string[];
+
+  // Display
+  is_active: boolean;
+  is_featured: boolean;
+  sort_order: number;
+
+  // Sync tracking
+  synced_from_awin: boolean;
+  last_synced_at: string | null;
+
+  created_at: string;
+  updated_at: string;
+
+  // Joined data (optional)
+  offer?: Offer;
+}

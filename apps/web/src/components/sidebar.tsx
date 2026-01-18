@@ -13,6 +13,8 @@ import {
   Settings,
   LogOut,
   BarChart3,
+  Tag,
+  Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
@@ -22,8 +24,10 @@ const navigation = [
   { name: 'Placements', href: '/placements', icon: LayoutGrid },
   { name: 'Offers', href: '/offers', icon: Target },
   { name: 'Creatives', href: '/creatives', icon: Image },
+  { name: 'Deals', href: '/deals', icon: Tag },
   { name: 'Rules', href: '/rules', icon: GitBranch },
   { name: 'Import', href: '/import', icon: Upload },
+  { name: 'Awin', href: '/awin', icon: Plug },
   { name: 'Test', href: '/test', icon: PlayCircle },
   { name: 'API Keys', href: '/api-keys', icon: Key },
 ];

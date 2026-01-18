@@ -247,3 +247,34 @@ export interface AnalyticsResponse {
     start: string;
   };
 }
+
+// =====================
+// Deals API (Public)
+// =====================
+
+export interface ServeDeal {
+  id: string;
+  merchant_name: string; // awin_advertiser_name or derived
+  title: string;
+  description: string | null;
+  terms: string | null;
+  voucher_code: string | null;
+  tracking_url: string;
+  start_date: string | null;
+  end_date: string | null;
+  categories: string[];
+  is_featured: boolean;
+}
+
+export interface DealsRequest {
+  country?: string; // 2-letter ISO code (required for filtering)
+  category?: string; // Optional category filter
+  limit?: number; // Max results (default: 20, max: 50)
+  featured_only?: boolean; // Only return featured deals
+}
+
+export interface DealsResponse {
+  deals: ServeDeal[];
+  geo: GeoInfo;
+  total: number;
+}
